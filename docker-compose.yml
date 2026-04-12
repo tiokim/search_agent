@@ -1,0 +1,13 @@
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - .env
+    # 백엔드는 외부에 직접 노출하지 않음 — nginx가 내부망으로 프록시
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend

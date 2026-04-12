@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search Agent</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+</head>
+<body>
+
+  <h1>Search Agent</h1>
+  <p class="subtitle">키워드를 입력하면 AI가 검색하고 요약해드립니다</p>
+
+  <div class="search-box">
+    <input id="keyword-input" type="text" placeholder="검색할 키워드를 입력하세요..." />
+    <button id="search-btn" onclick="startSearch()">검색</button>
+  </div>
+
+  <div class="steps" id="steps" style="display:none">
+    <div class="step" id="step-search">
+      <span class="dot"></span> 웹 검색
+    </div>
+    <div class="step" id="step-summarize">
+      <span class="dot"></span> AI 요약
+    </div>
+  </div>
+
+  <div class="notice-msg" id="notice-msg"></div>
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="card" id="result-card">
+    <div class="card-label">요약 결과</div>
+    <div id="summary-output"></div>
+    <div class="sources" id="sources-section">
+      <div class="sources-label">검색 출처</div>
+      <div id="sources-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';  // nginx가 /search/* 요청을 백엔드로 프록시
+
+    marked.setOptions({ breaks: true, gfm: true });
+
+    const input          = document.getElementById('keyword-input');
+    const btn            = document.getElementById('search-btn');
+    const steps          = document.getElementById('steps');
+    const stepSearch     = document.getElementById('step-search');
+    const stepSummarize  = document.getElementById('step-summarize');
+    const resultCard     = document.getElementById('result-card');
+    const summaryOutput  = document.getElementById('summary-output');
+    const sourcesSection = document.getElementById('sources-section');
+    const sourcesList    = document.getElementById('sources-list');
+    const errorMsg       = document.getElementById('error-msg');
+    const noticeMsg      = document.getElementById('notice-msg');
+
+    const CURSOR_HTML = '<span class="cursor"></span>';
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') startSearch();
+    });
+
+    function setStep(node, state) {
+      const el = node === 'search' ? stepSearch : stepSummarize;
+      el.classList.remove('active', 'done', 'retry');
+      if (state) el.classList.add(state);
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('visible');
+    }
+
+    function showNotice(msg) {
+      noticeMsg.textContent = msg;
+      noticeMsg.classList.add('visible');
+    }
+
+    function hideNotice() {
+      noticeMsg.classList.remove('visible');
+      noticeMsg.textContent = '';
+    }
+
+    function reset() {
+      errorMsg.classList.remove('visible');
+      hideNotice();
+      resultCard.classList.remove('visible');
+      sourcesSection.classList.remove('visible');
+      summaryOutput.innerHTML = '';
+      sourcesList.innerHTML = '';
+      setStep('search', null);
+      setStep('summarize', null);
+    }
+
+    // 누적 텍스트를 마크다운으로 렌더링하고 커서 삽입
+    function renderMarkdown(text, withCursor = true) {
+      summaryOutput.innerHTML = marked.parse(text) + (withCursor ? CURSOR_HTML : '');
+    }
+
+    function renderSources(raw) {
+      const blocks = raw.split(/\n(?=\[\d+\])/).filter(b => b.trim());
+      const items = blocks.map(block => {
+        const numMatch   = block.match(/^\[(\d+)\]/);
+        const urlMatch   = block.match(/출처:\s*(\S+)/);
+        const titleLines = block
+          .replace(/^\[\d+\]\s*/, '')
+          .replace(/\n출처:.*$/, '')
+          .split('\n').map(l => l.trim()).filter(Boolean);
+        return {
+          num  : numMatch   ? numMatch[1]   : '',
+          title: titleLines[0] || '',
+          url  : urlMatch   ? urlMatch[1]   : '',
+        };
+      });
+
+      sourcesList.innerHTML = items.map(({ num, title, url }) => `
+        <div class="source-item">
+          <span class="source-num">${num ? `[${num}]` : ''}</span>
+          <div class="source-content">
+            <a class="source-title" href="${url}" target="_blank" rel="noopener">${title || url}</a>
+            <span class="source-url">${url}</span>
+          </div>
+        </div>
+      `).join('');
+
+      if (items.length) sourcesSection.classList.add('visible');
+    }
+
+    async function startSearch() {
+      const keyword = input.value.trim();
+      if (!keyword) { input.focus(); return; }
+
+      reset();
+      btn.disabled = true;
+      steps.style.display = 'flex';
+
+      let summaryText = '';
+
+      try {
+        const res = await fetch(`${API_BASE}/search/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword }),
+        });
+
+        if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+
+        const reader  = res.body.getReader();
+        const decoder = new TextDecoder();
+        let   buffer  = '';
+
+        resultCard.classList.add('visible');
+        summaryOutput.innerHTML = CURSOR_HTML;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let event;
+            try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (event.type === 'status') {
+              if (event.node === 'search') {
+                hideNotice();
+                setStep('search', 'active');
+              } else if (event.node === 'summarize') {
+                hideNotice();
+                setStep('search', 'done');
+                setStep('summarize', 'active');
+              } else if (event.node === 'retry') {
+                // 현재 active 상태인 단계를 retry로 전환
+                if (stepSearch.classList.contains('active')) setStep('search', 'retry');
+                else if (stepSummarize.classList.contains('active')) setStep('summarize', 'retry');
+                showNotice(event.message);
+              }
+            }
+
+            else if (event.type === 'reset') {
+              summaryText = '';
+              summaryOutput.innerHTML = CURSOR_HTML;
+              hideNotice();
+            }
+
+            else if (event.type === 'chunk') {
+              summaryText += event.content;
+              renderMarkdown(summaryText, true);
+            }
+
+            else if (event.type === 'done') {
+              setStep('summarize', 'done');
+              hideNotice();
+              renderMarkdown(summaryText, false);
+              renderSources(event.search_results);
+            }
+
+            else if (event.type === 'error') {
+              showError(event.message);
+              steps.style.display = 'none';
+            }
+          }
+        }
+      } catch (err) {
+        showError(err.message || '요청 중 오류가 발생했습니다.');
+        steps.style.display = 'none';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
