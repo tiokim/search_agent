@@ -13,12 +13,17 @@ import asyncio
 import json
 import logging
 import logging.config
+import os
 import re
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Security
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from agent import graph
+
+ACCESS_TOKEN = os.getenv("ACCESS_TOKEN", "")
+bearer_scheme = HTTPBearer()
 
 logging.config.dictConfig({
     "version": 1,
@@ -81,8 +86,15 @@ def health():
     return {"status": "ok"}
 
 
+def _verify_token(credentials: HTTPAuthorizationCredentials = Security(bearer_scheme)):
+    if not ACCESS_TOKEN:
+        raise HTTPException(status_code=500, detail="서버에 ACCESS_TOKEN이 설정되지 않았습니다.")
+    if credentials.credentials != ACCESS_TOKEN:
+        raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다.")
+
+
 @app.post("/search/stream")
-async def search_stream(req: SearchRequest):
+async def search_stream(req: SearchRequest, _: None = Security(_verify_token)):
     if not req.keyword.strip():
         raise HTTPException(status_code=400, detail="keyword는 비워둘 수 없습니다.")
     logger.info("[Server] /search/stream 요청 | keyword='%s'", req.keyword)

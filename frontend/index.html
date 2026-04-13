@@ -9,8 +9,20 @@
 </head>
 <body>
 
+  <!-- 토큰 입력 오버레이 -->
+  <div class="token-overlay" id="token-overlay">
+    <div class="token-box">
+      <h2>Search Agent</h2>
+      <p>액세스 토큰을 입력하세요</p>
+      <input id="token-input" type="password" placeholder="토큰 입력..." autocomplete="current-password" />
+      <button onclick="submitToken()">입력</button>
+      <div class="token-error" id="token-error"></div>
+    </div>
+  </div>
+
   <h1>Search Agent</h1>
   <p class="subtitle">키워드를 입력하면 AI가 검색하고 요약해드립니다</p>
+  <button class="logout-btn" onclick="logout()" title="토큰 초기화">토큰 변경</button>
 
   <div class="search-box">
     <input id="keyword-input" type="text" placeholder="검색할 키워드를 입력하세요..." />
@@ -42,6 +54,41 @@
     const API_BASE = '';  // nginx가 /search/* 요청을 백엔드로 프록시
 
     marked.setOptions({ breaks: true, gfm: true });
+
+    // ── 토큰 관리 ──
+    const tokenOverlay = document.getElementById('token-overlay');
+    const tokenInput   = document.getElementById('token-input');
+    const tokenError   = document.getElementById('token-error');
+
+    function getToken() { return localStorage.getItem('accessToken'); }
+
+    function showTokenOverlay(msg = '') {
+      tokenError.textContent = msg;
+      tokenOverlay.classList.add('visible');
+      tokenInput.value = '';
+      setTimeout(() => tokenInput.focus(), 50);
+    }
+
+    function hideTokenOverlay() {
+      tokenOverlay.classList.remove('visible');
+    }
+
+    function submitToken() {
+      const t = tokenInput.value.trim();
+      if (!t) return;
+      localStorage.setItem('accessToken', t);
+      hideTokenOverlay();
+    }
+
+    function logout() {
+      localStorage.removeItem('accessToken');
+      showTokenOverlay();
+    }
+
+    tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitToken(); });
+
+    // 페이지 로드 시 토큰 확인
+    if (!getToken()) showTokenOverlay();
 
     const input          = document.getElementById('keyword-input');
     const btn            = document.getElementById('search-btn');
@@ -140,10 +187,18 @@
       try {
         const res = await fetch(`${API_BASE}/search/stream`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`,
+          },
           body: JSON.stringify({ keyword }),
         });
 
+        if (res.status === 401) {
+          localStorage.removeItem('accessToken');
+          showTokenOverlay('토큰이 올바르지 않습니다. 다시 입력해주세요.');
+          return;
+        }
         if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
 
         const reader  = res.body.getReader();
