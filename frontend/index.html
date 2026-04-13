@@ -9,45 +9,53 @@
 </head>
 <body>
 
-  <!-- 토큰 입력 오버레이 -->
-  <div class="token-overlay" id="token-overlay">
-    <div class="token-box">
-      <h2>Search Agent</h2>
-      <p>액세스 토큰을 입력하세요</p>
-      <input id="token-input" type="password" placeholder="토큰 입력..." autocomplete="current-password" />
-      <button onclick="submitToken()">입력</button>
+  <!-- 토큰 입력 화면 -->
+  <div id="auth-screen">
+    <div class="auth-box">
+      <h1>Search Agent</h1>
+      <p class="subtitle">액세스 토큰을 입력하세요</p>
+      <div class="auth-form">
+        <input id="token-input" type="password" placeholder="토큰 입력..." autocomplete="current-password" />
+        <button onclick="submitToken()">입력</button>
+      </div>
       <div class="token-error" id="token-error"></div>
     </div>
   </div>
 
-  <h1>Search Agent</h1>
-  <p class="subtitle">키워드를 입력하면 AI가 검색하고 요약해드립니다</p>
-  <button class="logout-btn" onclick="logout()" title="토큰 초기화">토큰 변경</button>
+  <!-- 메인 앱 화면 -->
+  <div id="app" style="display:none; width:100%; display:none">
 
-  <div class="search-box">
-    <input id="keyword-input" type="text" placeholder="검색할 키워드를 입력하세요..." />
-    <button id="search-btn" onclick="startSearch()">검색</button>
-  </div>
+    <h1>Search Agent</h1>
+    <p class="subtitle">키워드를 입력하면 AI가 검색하고 요약해드립니다</p>
 
-  <div class="steps" id="steps" style="display:none">
-    <div class="step" id="step-search">
-      <span class="dot"></span> 웹 검색
+    <div class="search-box">
+      <input id="keyword-input" type="text" placeholder="검색할 키워드를 입력하세요..." />
+      <button id="search-btn" onclick="startSearch()">검색</button>
     </div>
-    <div class="step" id="step-summarize">
-      <span class="dot"></span> AI 요약
-    </div>
-  </div>
 
-  <div class="notice-msg" id="notice-msg"></div>
-  <div class="error-msg" id="error-msg"></div>
-
-  <div class="card" id="result-card">
-    <div class="card-label">요약 결과</div>
-    <div id="summary-output"></div>
-    <div class="sources" id="sources-section">
-      <div class="sources-label">검색 출처</div>
-      <div id="sources-list"></div>
+    <div class="steps" id="steps" style="display:none">
+      <div class="step" id="step-search">
+        <span class="dot"></span> 웹 검색
+      </div>
+      <div class="step" id="step-summarize">
+        <span class="dot"></span> AI 요약
+      </div>
     </div>
+
+    <div class="notice-msg" id="notice-msg"></div>
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="card" id="result-card">
+      <div class="card-label">요약 결과</div>
+      <div id="summary-output"></div>
+      <div class="sources" id="sources-section">
+        <div class="sources-label">검색 출처</div>
+        <div id="sources-list"></div>
+      </div>
+    </div>
+
+    <button class="token-change-btn" onclick="logout()">토큰 변경</button>
+
   </div>
 
   <script>
@@ -55,41 +63,45 @@
 
     marked.setOptions({ breaks: true, gfm: true });
 
-    // ── 토큰 관리 ──
-    const tokenOverlay = document.getElementById('token-overlay');
-    const tokenInput   = document.getElementById('token-input');
-    const tokenError   = document.getElementById('token-error');
+    // ── 화면 전환 ──
+    const authScreen = document.getElementById('auth-screen');
+    const appScreen  = document.getElementById('app');
+    const tokenInput = document.getElementById('token-input');
+    const tokenError = document.getElementById('token-error');
 
     function getToken() { return localStorage.getItem('accessToken'); }
 
-    function showTokenOverlay(msg = '') {
+    function showAuth(msg = '') {
       tokenError.textContent = msg;
-      tokenOverlay.classList.add('visible');
       tokenInput.value = '';
+      authScreen.style.display = 'flex';
+      appScreen.style.display  = 'none';
       setTimeout(() => tokenInput.focus(), 50);
     }
 
-    function hideTokenOverlay() {
-      tokenOverlay.classList.remove('visible');
+    function showApp() {
+      authScreen.style.display = 'none';
+      appScreen.style.display  = 'block';
     }
 
     function submitToken() {
       const t = tokenInput.value.trim();
       if (!t) return;
       localStorage.setItem('accessToken', t);
-      hideTokenOverlay();
+      showApp();
     }
 
     function logout() {
       localStorage.removeItem('accessToken');
-      showTokenOverlay();
+      showAuth();
     }
 
     tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitToken(); });
 
     // 페이지 로드 시 토큰 확인
-    if (!getToken()) showTokenOverlay();
+    if (getToken()) { showApp(); } else { showAuth(); }
 
+    // ── 검색 앱 ──
     const input          = document.getElementById('keyword-input');
     const btn            = document.getElementById('search-btn');
     const steps          = document.getElementById('steps');
@@ -140,7 +152,6 @@
       setStep('summarize', null);
     }
 
-    // 누적 텍스트를 마크다운으로 렌더링하고 커서 삽입
     function renderMarkdown(text, withCursor = true) {
       summaryOutput.innerHTML = marked.parse(text) + (withCursor ? CURSOR_HTML : '');
     }
@@ -196,7 +207,7 @@
 
         if (res.status === 401) {
           localStorage.removeItem('accessToken');
-          showTokenOverlay('토큰이 올바르지 않습니다. 다시 입력해주세요.');
+          showAuth('토큰이 올바르지 않습니다. 다시 입력해주세요.');
           return;
         }
         if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
@@ -230,7 +241,6 @@
                 setStep('search', 'done');
                 setStep('summarize', 'active');
               } else if (event.node === 'retry') {
-                // 현재 active 상태인 단계를 retry로 전환
                 if (stepSearch.classList.contains('active')) setStep('search', 'retry');
                 else if (stepSummarize.classList.contains('active')) setStep('summarize', 'retry');
                 showNotice(event.message);

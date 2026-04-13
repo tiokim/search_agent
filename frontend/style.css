@@ -365,63 +365,53 @@ h1 {
 
 .notice-msg.visible { display: block; }
 
-/* ── 토큰 오버레이 ── */
-.token-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 17, 23, 0.92);
-  backdrop-filter: blur(6px);
-  z-index: 100;
+/* ── 토큰 입력 화면 ── */
+#auth-screen {
+  display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  min-height: 80vh;
 }
 
-.token-overlay.visible { display: flex; }
-
-.token-box {
-  background: #1a1f2e;
-  border: 1px solid #2d3748;
-  border-radius: 16px;
-  padding: 40px 36px;
+.auth-box {
   width: 100%;
   max-width: 400px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 12px;
   text-align: center;
 }
 
-.token-box h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #6366f1, #22d3ee);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.auth-box h1 {
+  font-size: 2rem;
+  margin-bottom: 4px;
 }
 
-.token-box p {
-  color: #64748b;
-  font-size: 0.9rem;
+.auth-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
 }
 
-.token-box input {
+.auth-form input {
+  flex: 1;
   padding: 12px 16px;
   border-radius: 10px;
   border: 1px solid #2d3748;
-  background: #0f1117;
+  background: #1a1f2e;
   color: #e2e8f0;
   font-size: 1rem;
   outline: none;
-  text-align: center;
-  letter-spacing: 0.1em;
   transition: border-color 0.2s;
 }
 
-.token-box input:focus { border-color: #6366f1; }
+.auth-form input:focus { border-color: #6366f1; }
+.auth-form input::placeholder { color: #4a5568; }
 
-.token-box button {
-  padding: 12px;
+.auth-form button {
+  padding: 12px 22px;
   border-radius: 10px;
   border: none;
   background: linear-gradient(135deg, #6366f1, #4f46e5);
@@ -429,33 +419,32 @@ h1 {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition: opacity 0.2s;
 }
 
-.token-box button:hover { opacity: 0.88; }
+.auth-form button:hover { opacity: 0.88; }
 
 .token-error {
   color: #fca5a5;
-  font-size: 0.85rem;
-  min-height: 1em;
+  font-size: 0.875rem;
+  min-height: 1.2em;
 }
 
 /* ── 토큰 변경 버튼 ── */
-.logout-btn {
-  position: fixed;
-  top: 16px;
-  right: 16px;
+.token-change-btn {
+  margin-top: 32px;
   padding: 6px 14px;
   border-radius: 8px;
   border: 1px solid #2d3748;
-  background: #1a1f2e;
-  color: #64748b;
+  background: transparent;
+  color: #4a5568;
   font-size: 0.8rem;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s;
 }
 
-.logout-btn:hover {
+.token-change-btn:hover {
   color: #a5b4fc;
   border-color: #6366f1;
 }
