@@ -433,18 +433,27 @@ h1 {
 
 /* ── 토큰 변경 버튼 ── */
 .token-change-btn {
-  margin-top: 32px;
-  padding: 6px 14px;
-  border-radius: 8px;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
   border: 1px solid #2d3748;
-  background: transparent;
+  background: rgba(26, 31, 46, 0.7);
   color: #4a5568;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 
 .token-change-btn:hover {
   color: #a5b4fc;
   border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
 }
